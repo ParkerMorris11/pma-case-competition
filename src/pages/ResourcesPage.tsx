@@ -14,7 +14,8 @@ import PaidResourceModal from "@/components/PaidResourceModal";
 import PremiumResourceModal from "@/components/PremiumResourceModal";
 import PresidencyConnect from "@/components/PresidencyConnect";
 import ApmPlaybook from "@/components/resources/ApmPlaybook";
-import PracticeInterviews from "@/components/resources/PracticeInterviews";
+import PracticeInterviews, { VideoTile } from "@/components/resources/PracticeInterviews";
+import { isInterviewQuery, matchesResource, searchVideos, SUGGESTED_SEARCHES } from "@/lib/resourceSearch";
 import ResourcesFeedback from "@/components/resources/ResourcesFeedback";
 import { RESOURCE_CATEGORIES, type ResourceIcon } from "@/lib/resources";
 
@@ -317,17 +318,20 @@ const ResourcesPage = () => {
     }
   };
 
-  const query = searchQuery.toLowerCase();
-  const searchResults = searchQuery
+  const matchedResources = searchQuery
     ? CATEGORIES.flatMap((category) =>
         category.resources
-          .filter(
-            (resource) =>
-              resource.title.toLowerCase().includes(query) || resource.description.toLowerCase().includes(query),
-          )
+          .filter((resource) => matchesResource(searchQuery, [resource.title, resource.description, category.title]))
           .map((resource) => ({ resource, category })),
       )
     : [];
+  const interviewPrep = CATEGORIES.find((category) => category.id === "resume-interview");
+  const searchResults =
+    matchedResources.length === 0 && searchQuery && isInterviewQuery(searchQuery) && interviewPrep
+      ? interviewPrep.resources.map((resource) => ({ resource, category: interviewPrep }))
+      : matchedResources;
+  const videoResults = searchQuery ? searchVideos(searchQuery) : [];
+  const videoCount = videoResults.reduce((sum, group) => sum + group.videos.length, 0);
 
   const nonEmptyCategories = CATEGORIES.filter((category) => category.resources.length > 0);
 
@@ -487,12 +491,30 @@ const ResourcesPage = () => {
               </AnimatedSection>
             )}
           </div>
-        ) : searchQuery && searchResults.length > 0 ? (
+        ) : searchQuery && searchResults.length + videoCount > 0 ? (
           // Search Results View
           <div className="max-w-6xl mx-auto">
             <p className="text-sm text-muted-foreground mb-6">
-              Found {searchResults.length} result{searchResults.length !== 1 ? "s" : ""}
+              Found {searchResults.length + videoCount} result{searchResults.length + videoCount !== 1 ? "s" : ""}
             </p>
+            {videoResults.length > 0 && (
+              <div className="mb-10 space-y-8">
+                {videoResults.map(({ topic, videos }) => (
+                  <div key={topic.slug}>
+                    <h3 className="text-lg font-semibold text-foreground mb-1">Practice interviews: {topic.title}</h3>
+                    <p className="text-sm text-muted-foreground mb-4">{topic.description}</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                      {videos.map((video) => (
+                        <VideoTile key={video.youtubeId} video={video} />
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {searchResults.length > 0 && videoResults.length > 0 && (
+              <h3 className="text-lg font-semibold text-foreground mb-4">Resources</h3>
+            )}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
               {searchResults.map(({ resource, category }, idx) => (
                 <AnimatedSection key={`${category.id}-${resource.title}`} animation="slide-up" delay={idx * 50} className="h-full">
@@ -510,7 +532,14 @@ const ResourcesPage = () => {
         ) : searchQuery ? (
           // No Results
           <div className="max-w-6xl mx-auto text-center py-12">
-            <p className="text-muted-foreground">No resources found matching "{searchQuery}"</p>
+            <p className="text-muted-foreground mb-4">No exact matches for "{searchQuery}". Try one of these:</p>
+            <div className="flex flex-wrap justify-center gap-2">
+              {SUGGESTED_SEARCHES.map((suggestion) => (
+                <Button key={suggestion} variant="outline" size="sm" onClick={() => setSearchQuery(suggestion)}>
+                  {suggestion}
+                </Button>
+              ))}
+            </div>
           </div>
         ) : (
           // Category Grid View

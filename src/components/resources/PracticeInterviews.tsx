@@ -15,7 +15,7 @@ const SubHeading = ({ children }: { children: React.ReactNode }) => (
   <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">{children}</h4>
 );
 
-const VideoTile = ({ video }: { video: LibraryVideo }) => (
+export const VideoTile = ({ video }: { video: LibraryVideo }) => (
   <a
     href={`https://www.youtube.com/watch?v=${video.youtubeId}`}
     target="_blank"
