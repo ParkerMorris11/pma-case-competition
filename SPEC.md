@@ -43,4 +43,9 @@ The demo verifies the interaction. Measuring the effect after release requires s
 
 ## What shipped
 
-The phrase groups live in `src/lib/resourceSearch.ts` and the recommendation card and fallback button in `src/pages/ResourcesPage.tsx`. The Product Sense recommendation does not include a **Read the Product Sense guide** link, because the page has no topic links yet.
+The phrase groups live in `src/lib/resourceSearch.ts`, and the recommendation card and fallback button in `src/pages/ResourcesPage.tsx`. Every browser check in this spec passed on a local production build. `npm run build` passes, and `npm run lint` reports 0 errors (the 13 existing warnings).
+
+Two gaps from the spec:
+
+- The Product Sense recommendation has no **Read the Product Sense guide** link, because the page has no topic links yet.
+- Clicking the recommendation is not recorded as a video open. The demo site has no video open tracking, so production instrumentation is a follow-up.

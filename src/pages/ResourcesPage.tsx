@@ -327,7 +327,7 @@ const ResourcesPage = () => {
   };
 
   const query = normalizeQuery(searchQuery);
-  const recommendation = searchQuery ? getRecommendation(searchQuery) : null;
+  const recommendation = query ? getRecommendation(query) : null;
   const browsePracticeInterviews = () => {
     setFocusPractice(true);
     setSearchQuery("");
@@ -342,6 +342,8 @@ const ResourcesPage = () => {
           .map((resource) => ({ resource, category })),
       )
     : [];
+
+  const resultCount = searchResults.length + (recommendation ? 1 : 0);
 
   const nonEmptyCategories = CATEGORIES.filter((category) => category.resources.length > 0);
 
@@ -405,16 +407,16 @@ const ResourcesPage = () => {
           </div>
         </AnimatedSection>
 
-        {!selectedCategory && !searchQuery && (
+        {!selectedCategory && !query && (
           <ApmPlaybook onSelectCategory={setSelectedCategory} onOpenResource={openResourceByTitle} />
         )}
 
-        {!selectedCategory && !searchQuery && <PracticeInterviews />}
+        {!selectedCategory && !query && <PracticeInterviews />}
 
-        {!selectedCategory && !searchQuery && <PresidencyConnect />}
+        {!selectedCategory && !query && <PresidencyConnect />}
 
         {/* Most Useful Resources Carousel */}
-        {!selectedCategory && !searchQuery && FEATURED_RESOURCES.length > 0 && (
+        {!selectedCategory && !query && FEATURED_RESOURCES.length > 0 && (
           <AnimatedSection animation="fade-in">
             <div className="max-w-6xl mx-auto mb-12">
               <div className="flex items-center gap-2 mb-4">
@@ -501,9 +503,12 @@ const ResourcesPage = () => {
               </AnimatedSection>
             )}
           </div>
-        ) : searchQuery && (searchResults.length > 0 || recommendation) ? (
+        ) : query && resultCount > 0 ? (
           // Search Results View
           <div className="max-w-6xl mx-auto">
+            <p className="text-sm text-muted-foreground mb-6">
+              Found {resultCount} result{resultCount !== 1 ? "s" : ""}
+            </p>
             {recommendation && (
               <Card className="mb-8 border-primary/40 bg-card">
                 <CardContent className="p-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -528,15 +533,11 @@ const ResourcesPage = () => {
                     >
                       <Play className="w-4 h-4 mr-2" />
                       Watch video
+                      <ExternalLink className="w-3.5 h-3.5 ml-2" aria-hidden="true" />
                     </a>
                   </Button>
                 </CardContent>
               </Card>
-            )}
-            {searchResults.length > 0 && (
-              <p className="text-sm text-muted-foreground mb-6">
-                Found {searchResults.length} result{searchResults.length !== 1 ? "s" : ""}
-              </p>
             )}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
               {searchResults.map(({ resource, category }, idx) => (
@@ -552,10 +553,10 @@ const ResourcesPage = () => {
               ))}
             </div>
           </div>
-        ) : searchQuery ? (
+        ) : query ? (
           // No Results
           <div className="max-w-6xl mx-auto text-center py-12">
-            <p className="text-muted-foreground mb-4">No resources found matching "{searchQuery}"</p>
+            <p className="text-muted-foreground mb-4">No resources found matching "{searchQuery.trim()}"</p>
             <Button variant="outline" onClick={browsePracticeInterviews}>
               Browse Practice Interviews
             </Button>
