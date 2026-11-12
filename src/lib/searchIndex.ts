@@ -205,11 +205,21 @@ export interface GroupedResults {
   playbook: Extract<SearchHit, { kind: "playbook" }>[];
 }
 
-export const groupResults = (hits: SearchHit[], excludeVideoId?: string, maxVideos = 8): GroupedResults => ({
-  resourceTitles: hits.filter((h) => h.kind === "resource").slice(0, 6).map((h) => h.title),
-  topics: hits.filter((h): h is Extract<SearchHit, { kind: "topic" }> => h.kind === "topic").slice(0, 3),
-  videos: hits
-    .filter((h): h is Extract<SearchHit, { kind: "video" }> => h.kind === "video" && h.video.youtubeId !== excludeVideoId)
-    .slice(0, maxVideos),
-  playbook: hits.filter((h): h is Extract<SearchHit, { kind: "playbook" }> => h.kind === "playbook").slice(0, 2),
-});
+// Keep only hits that score close to the best hit of the same kind, so weak synonym matches drop out.
+const strongest = <T extends SearchHit>(hits: T[], max: number, ratio = 0.6): T[] => {
+  const best = hits[0]?.score ?? 0;
+  return hits.filter((h) => h.score >= best * ratio).slice(0, max);
+};
+
+export const groupResults = (hits: SearchHit[], excludeVideoId?: string, hasRecommendation = false): GroupedResults => {
+  const cap = hasRecommendation ? 0.5 : 1;
+  return {
+    resourceTitles: strongest(hits.filter((h) => h.kind === "resource"), 6).map((h) => h.title),
+    topics: strongest(hits.filter((h): h is Extract<SearchHit, { kind: "topic" }> => h.kind === "topic"), hasRecommendation ? 1 : 2),
+    videos: strongest(
+      hits.filter((h): h is Extract<SearchHit, { kind: "video" }> => h.kind === "video" && h.video.youtubeId !== excludeVideoId),
+      Math.round(8 * cap),
+    ),
+    playbook: strongest(hits.filter((h): h is Extract<SearchHit, { kind: "playbook" }> => h.kind === "playbook"), 1),
+  };
+};

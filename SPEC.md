@@ -12,24 +12,27 @@ Weekly active members fell from **41 to 23**. In the Oct. 27–Nov. 9 replay sam
 
 ## What to ship
 
-Normalize case and whitespace, then match the full query against the three groups below. Show one **Recommended starting point** above any ordinary results. Give it the existing video title, duration, a short reason to watch, and a direct **Watch video** link.
+**1. Recommended starting point.** Normalize case and whitespace, then match the full query against the three groups below. Show one **Recommended starting point** above every other result, with the video title, duration, a short reason to watch, and a direct **Watch video** link.
 
 | Queries | Result | Why this result |
 | --- | --- | --- |
 | `case interview`, `case`, `practice interview`, `mock interview videos`, `interview videos` | **PM Interview Rubric: What to Expect** · 5 min | See what interviewers are looking for before attempting a mock. |
-| `product sense`, `product sense interview` | **Google PM Mock: Improve Headspace** · 25 min | See how a candidate works through a product sense question. If the branch already supports topic links, offer **Read the Product Sense guide** as a quicker alternative. |
+| `product sense`, `product sense interview` | **Google PM Mock: Improve Headspace** · 25 min | See how a candidate works through a product sense question. |
 | `behavioral`, `behavioral questions`, `behavorial`, `tell me about yourself`, `star method` | **Building a Behavioral Story Bank** · 3 min | Pick stories to practice before drafting answers. |
 
-If a query has neither a recommendation nor a normal match, show **Browse Practice Interviews** below the empty message. That button clears search, takes the member to the section, and moves keyboard focus to its heading. Clearing the query manually restores the normal page. Existing card matches remain available. The fix uses the existing [video library](https://github.com/danielwait2/pma-case-competition/blob/main/src/lib/videoLibrary.ts#L24) and stays inside the current membership check.
+**2. Search the whole library.** One in-memory index covers all four content sources on the page: the 16 resource links, the 55 practice interview videos, the 8 topic guides, and the 5 APM Playbook steps. It adds a synonym table for the words students use (for example "behavioral" finds Leadership and Drive, and "case" finds product sense, estimation, strategy and execution), prefix matching, and one-typo tolerance. Results are grouped as **Interview guides**, **Practice interview videos**, **APM Playbook**, and **Resources**. Only hits that score close to the best hit of their kind are shown, and the sections shrink when a recommendation is present.
 
-**Out of scope:** Changes to the lock screen, approval, a free preview, a weekly digest, new video content, and a full search rewrite.
+**3. Every result leads somewhere.** **Open guide** clears search, opens that topic's tab in Practice Interviews, and focuses its heading. **Open step** does the same for the APM Playbook step. If nothing matches, **Browse Practice Interviews** appears below the empty message. Existing resource card matches (such as `Cursor`) still appear, clearing the query restores the normal page, and everything stays inside the current membership check.
 
-## Implementation and acceptance checks
+**Out of scope:** Changes to the lock screen, approval, a free preview, a weekly digest, new video content, and new dependencies.
 
-1. **Match:** Add or verify the three phrase groups in the [Resources page](https://github.com/danielwait2/pma-case-competition/blob/main/src/pages/ResourcesPage.tsx). Resolve videos from the existing library by ID. Confirm `  PRODUCT   SENSE  ` resolves the same way as `product sense`.
-2. **Show:** Render the recommendation even if there are zero ordinary matches. Try `case interview`, `product sense`, and `behavioral`. Each should show the correct title and duration, and each link should open the correct video. Check the card on a narrow screen.
-3. **Recover:** Search for `zzzz` and use the fallback with a keyboard. The Practice Interviews heading should be visible and focused. Search for `Cursor` and verify the existing card still appears. Clear the field and verify normal browsing returns.
-4. **Protect and ship:** Sign out and check that member-only search is still locked. Run `npm run build`. Demo the search fix in the browser, and submit only that branch's PR. If the built branch differs from this spec, fix the gap or update the PR description to match what actually ships.
+## Acceptance checks
+
+1. **Recommendation:** `case interview` and `mock interview videos` show the 5 min rubric first. `  PRODUCT   SENSE  ` matches `product sense` (25 min Headspace mock). `behavioral`, `behavorial` and `STAR method` show the 3 min story bank.
+2. **Whole library:** `estimation`, `root cause`, `rubric`, `whatsapp` and `product sence` return guides or videos. `apm deadlines` returns the Applications playbook step and the APM List.
+3. **Navigation:** **Open guide** on `estimation` lands on the Estimation tab with its heading focused. **Open step** on `apm deadlines` lands on step 4.
+4. **Recover and protect:** `zzzz` and `briefcase` show the fallback button, and using it by keyboard focuses Practice Interviews. `Cursor` still shows the Cursor card. Clearing the box or typing only spaces restores the normal page. A 375px screen has no horizontal scroll. Signed out shows the lock screen with no search.
+5. **Ship:** `npm run build` passes and `npm run lint` has no errors.
 
 ## How to measure it
 
@@ -43,9 +46,8 @@ The demo verifies the interaction. Measuring the effect after release requires s
 
 ## What shipped
 
-The phrase groups live in `src/lib/resourceSearch.ts`, and the recommendation card and fallback button in `src/pages/ResourcesPage.tsx`. Every browser check in this spec passed on a local production build. `npm run build` passes, and `npm run lint` reports 0 errors (the 13 existing warnings).
-
-Two gaps from the spec:
-
-- The Product Sense recommendation has no **Read the Product Sense guide** link, because the page has no topic links yet.
-- Clicking the recommendation is not recorded as a video open. The demo site has no video open tracking, so production instrumentation is a follow-up.
+- **Files:** `src/lib/resourceSearch.ts` (recommendations), `src/lib/searchIndex.ts` (the index), result sections in `src/pages/ResourcesPage.tsx`, and optional controlled tabs in `PracticeInterviews.tsx` and `ApmPlaybook.tsx`.
+- **Verified:** every acceptance check above passed on a local production build signed in as the demo member. `npm run build` passes, and `npm run lint` has 0 errors (the 13 existing warnings).
+- **Replay:** I ran all 106 searches in `events.csv` through the new search. None of them return zero results now; 85 did before.
+- **Not verified:** the YouTube links were checked by their URLs only, because the test sandbox cannot load YouTube.
+- **Known gaps:** some resource links match on their tips text, so a search like `resume` shows a few loosely related links. Clicking a recommendation or video is not recorded as a video open, because the demo has no video tracking, so production instrumentation is a follow-up.

@@ -343,7 +343,7 @@ const ResourcesPage = () => {
     setJumpTo("apm-playbook-title");
     setSearchQuery("");
   };
-  const indexed = query ? groupResults(searchIndex(query), recommendation?.video.youtubeId) : null;
+  const indexed = query ? groupResults(searchIndex(query), recommendation?.video.youtubeId, !!recommendation) : null;
   const exactResources = query
     ? CATEGORIES.flatMap((category) =>
         category.resources
