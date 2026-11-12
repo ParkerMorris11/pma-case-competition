@@ -14,10 +14,10 @@ import PaidResourceModal from "@/components/PaidResourceModal";
 import PremiumResourceModal from "@/components/PremiumResourceModal";
 import PresidencyConnect from "@/components/PresidencyConnect";
 import ApmPlaybook from "@/components/resources/ApmPlaybook";
-import PracticeInterviews, { VideoTile } from "@/components/resources/PracticeInterviews";
-import { isInterviewQuery, matchesResource, searchVideos, SUGGESTED_SEARCHES } from "@/lib/resourceSearch";
+import PracticeInterviews from "@/components/resources/PracticeInterviews";
 import ResourcesFeedback from "@/components/resources/ResourcesFeedback";
 import { RESOURCE_CATEGORIES, type ResourceIcon } from "@/lib/resources";
+import { getRecommendation, normalizeQuery } from "@/lib/resourceSearch";
 
 interface Resource {
   title: string;
@@ -244,6 +244,7 @@ const ResourcesPage = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [focusedResource, setFocusedResource] = useState<string | null>(null);
+  const [focusPractice, setFocusPractice] = useState(false);
   const { user, profile, isBlocked, loading: authLoading } = useAuth();
   const isPmaMember = !!profile?.is_pma_member && !isBlocked;
   const [selectedPaidResource, setSelectedPaidResource] = useState<{ title: string; url: string } | null>(null);
@@ -254,6 +255,13 @@ const ResourcesPage = () => {
     if (focusedResource) {
       document.getElementById(resourceAnchorId(focusedResource))?.scrollIntoView({ behavior: "smooth", block: "center" });
       setFocusedResource(null);
+      return;
+    }
+    if (focusPractice && !searchQuery) {
+      const heading = document.getElementById("practice-interviews-title");
+      heading?.scrollIntoView({ behavior: "smooth", block: "start" });
+      heading?.focus({ preventScroll: true });
+      setFocusPractice(false);
       return;
     }
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -318,20 +326,22 @@ const ResourcesPage = () => {
     }
   };
 
-  const matchedResources = searchQuery
+  const query = normalizeQuery(searchQuery);
+  const recommendation = searchQuery ? getRecommendation(searchQuery) : null;
+  const browsePracticeInterviews = () => {
+    setFocusPractice(true);
+    setSearchQuery("");
+  };
+  const searchResults = query
     ? CATEGORIES.flatMap((category) =>
         category.resources
-          .filter((resource) => matchesResource(searchQuery, [resource.title, resource.description, category.title]))
+          .filter(
+            (resource) =>
+              resource.title.toLowerCase().includes(query) || resource.description.toLowerCase().includes(query),
+          )
           .map((resource) => ({ resource, category })),
       )
     : [];
-  const interviewPrep = CATEGORIES.find((category) => category.id === "resume-interview");
-  const searchResults =
-    matchedResources.length === 0 && searchQuery && isInterviewQuery(searchQuery) && interviewPrep
-      ? interviewPrep.resources.map((resource) => ({ resource, category: interviewPrep }))
-      : matchedResources;
-  const videoResults = searchQuery ? searchVideos(searchQuery) : [];
-  const videoCount = videoResults.reduce((sum, group) => sum + group.videos.length, 0);
 
   const nonEmptyCategories = CATEGORIES.filter((category) => category.resources.length > 0);
 
@@ -491,29 +501,42 @@ const ResourcesPage = () => {
               </AnimatedSection>
             )}
           </div>
-        ) : searchQuery && searchResults.length + videoCount > 0 ? (
+        ) : searchQuery && (searchResults.length > 0 || recommendation) ? (
           // Search Results View
           <div className="max-w-6xl mx-auto">
-            <p className="text-sm text-muted-foreground mb-6">
-              Found {searchResults.length + videoCount} result{searchResults.length + videoCount !== 1 ? "s" : ""}
-            </p>
-            {videoResults.length > 0 && (
-              <div className="mb-10 space-y-8">
-                {videoResults.map(({ topic, videos }) => (
-                  <div key={topic.slug}>
-                    <h3 className="text-lg font-semibold text-foreground mb-1">Practice interviews: {topic.title}</h3>
-                    <p className="text-sm text-muted-foreground mb-4">{topic.description}</p>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                      {videos.map((video) => (
-                        <VideoTile key={video.youtubeId} video={video} />
-                      ))}
-                    </div>
+            {recommendation && (
+              <Card className="mb-8 border-primary/40 bg-card">
+                <CardContent className="p-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-primary mb-1">
+                      Recommended starting point
+                    </p>
+                    <h3 className="text-lg font-semibold text-card-foreground break-words">
+                      {recommendation.video.title}{" "}
+                      <span className="text-sm font-normal text-muted-foreground whitespace-nowrap">
+                        · {recommendation.video.minutes} min
+                      </span>
+                    </h3>
+                    <p className="text-sm text-muted-foreground mt-1">{recommendation.reason}</p>
                   </div>
-                ))}
-              </div>
+                  <Button asChild className="shrink-0">
+                    <a
+                      href={`https://www.youtube.com/watch?v=${recommendation.video.youtubeId}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label={`Watch video: ${recommendation.video.title} (opens YouTube in a new tab)`}
+                    >
+                      <Play className="w-4 h-4 mr-2" />
+                      Watch video
+                    </a>
+                  </Button>
+                </CardContent>
+              </Card>
             )}
-            {searchResults.length > 0 && videoResults.length > 0 && (
-              <h3 className="text-lg font-semibold text-foreground mb-4">Resources</h3>
+            {searchResults.length > 0 && (
+              <p className="text-sm text-muted-foreground mb-6">
+                Found {searchResults.length} result{searchResults.length !== 1 ? "s" : ""}
+              </p>
             )}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
               {searchResults.map(({ resource, category }, idx) => (
@@ -532,14 +555,10 @@ const ResourcesPage = () => {
         ) : searchQuery ? (
           // No Results
           <div className="max-w-6xl mx-auto text-center py-12">
-            <p className="text-muted-foreground mb-4">No exact matches for "{searchQuery}". Try one of these:</p>
-            <div className="flex flex-wrap justify-center gap-2">
-              {SUGGESTED_SEARCHES.map((suggestion) => (
-                <Button key={suggestion} variant="outline" size="sm" onClick={() => setSearchQuery(suggestion)}>
-                  {suggestion}
-                </Button>
-              ))}
-            </div>
+            <p className="text-muted-foreground mb-4">No resources found matching "{searchQuery}"</p>
+            <Button variant="outline" onClick={browsePracticeInterviews}>
+              Browse Practice Interviews
+            </Button>
           </div>
         ) : (
           // Category Grid View

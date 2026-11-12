@@ -15,7 +15,7 @@ const SubHeading = ({ children }: { children: React.ReactNode }) => (
   <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">{children}</h4>
 );
 
-export const VideoTile = ({ video }: { video: LibraryVideo }) => (
+const VideoTile = ({ video }: { video: LibraryVideo }) => (
   <a
     href={`https://www.youtube.com/watch?v=${video.youtubeId}`}
     target="_blank"
@@ -103,7 +103,11 @@ const PracticeInterviews = () => {
     >
       <div className="rounded-xl border border-border bg-card overflow-hidden">
         <AnimatedSection animation="fade-in" className="p-5 md:p-8">
-          <h2 id="practice-interviews-title" className="text-2xl md:text-3xl font-extrabold text-card-foreground">
+          <h2
+            id="practice-interviews-title"
+            tabIndex={-1}
+            className="text-2xl md:text-3xl font-extrabold text-card-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
+          >
             Practice Interviews
           </h2>
           <p className="mt-1 text-sm md:text-base text-muted-foreground">
