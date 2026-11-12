@@ -14,10 +14,13 @@ import PaidResourceModal from "@/components/PaidResourceModal";
 import PremiumResourceModal from "@/components/PremiumResourceModal";
 import PresidencyConnect from "@/components/PresidencyConnect";
 import ApmPlaybook from "@/components/resources/ApmPlaybook";
-import PracticeInterviews from "@/components/resources/PracticeInterviews";
+import PracticeInterviews, { VideoTile } from "@/components/resources/PracticeInterviews";
 import ResourcesFeedback from "@/components/resources/ResourcesFeedback";
 import { RESOURCE_CATEGORIES, type ResourceIcon } from "@/lib/resources";
 import { getRecommendation, normalizeQuery } from "@/lib/resourceSearch";
+import { groupResults, searchIndex } from "@/lib/searchIndex";
+import { PLAYBOOK_STEPS } from "@/lib/apmPlaybook";
+import { VIDEO_LIBRARY } from "@/lib/videoLibrary";
 
 interface Resource {
   title: string;
@@ -244,7 +247,9 @@ const ResourcesPage = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [focusedResource, setFocusedResource] = useState<string | null>(null);
-  const [focusPractice, setFocusPractice] = useState(false);
+  const [jumpTo, setJumpTo] = useState<"practice-interviews-title" | "apm-playbook-title" | null>(null);
+  const [practiceTopic, setPracticeTopic] = useState<string | undefined>(undefined);
+  const [playbookStep, setPlaybookStep] = useState<string | undefined>(undefined);
   const { user, profile, isBlocked, loading: authLoading } = useAuth();
   const isPmaMember = !!profile?.is_pma_member && !isBlocked;
   const [selectedPaidResource, setSelectedPaidResource] = useState<{ title: string; url: string } | null>(null);
@@ -257,11 +262,11 @@ const ResourcesPage = () => {
       setFocusedResource(null);
       return;
     }
-    if (focusPractice && !searchQuery) {
-      const heading = document.getElementById("practice-interviews-title");
+    if (jumpTo && !searchQuery.trim()) {
+      const heading = document.getElementById(jumpTo);
       heading?.scrollIntoView({ behavior: "smooth", block: "start" });
       heading?.focus({ preventScroll: true });
-      setFocusPractice(false);
+      setJumpTo(null);
       return;
     }
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -328,11 +333,18 @@ const ResourcesPage = () => {
 
   const query = normalizeQuery(searchQuery);
   const recommendation = query ? getRecommendation(query) : null;
-  const browsePracticeInterviews = () => {
-    setFocusPractice(true);
+  const browsePracticeInterviews = (topic?: string) => {
+    if (topic) setPracticeTopic(topic);
+    setJumpTo("practice-interviews-title");
     setSearchQuery("");
   };
-  const searchResults = query
+  const openPlaybookStep = (stepId: string) => {
+    setPlaybookStep(stepId);
+    setJumpTo("apm-playbook-title");
+    setSearchQuery("");
+  };
+  const indexed = query ? groupResults(searchIndex(query), recommendation?.video.youtubeId) : null;
+  const exactResources = query
     ? CATEGORIES.flatMap((category) =>
         category.resources
           .filter(
@@ -342,8 +354,20 @@ const ResourcesPage = () => {
           .map((resource) => ({ resource, category })),
       )
     : [];
+  const indexedResources = (indexed?.resourceTitles ?? [])
+    .filter((title) => !exactResources.some(({ resource }) => resource.title === title))
+    .flatMap((title) =>
+      CATEGORIES.flatMap((category) =>
+        category.resources.filter((resource) => resource.title === title).map((resource) => ({ resource, category })),
+      ),
+    );
+  const searchResults = [...exactResources, ...indexedResources];
+  const topicResults = indexed?.topics ?? [];
+  const videoResults = indexed?.videos ?? [];
+  const playbookResults = indexed?.playbook ?? [];
 
-  const resultCount = searchResults.length + (recommendation ? 1 : 0);
+  const resultCount =
+    searchResults.length + topicResults.length + videoResults.length + playbookResults.length + (recommendation ? 1 : 0);
 
   const nonEmptyCategories = CATEGORIES.filter((category) => category.resources.length > 0);
 
@@ -408,10 +432,17 @@ const ResourcesPage = () => {
         </AnimatedSection>
 
         {!selectedCategory && !query && (
-          <ApmPlaybook onSelectCategory={setSelectedCategory} onOpenResource={openResourceByTitle} />
+          <ApmPlaybook
+            onSelectCategory={setSelectedCategory}
+            onOpenResource={openResourceByTitle}
+            activeStep={playbookStep}
+            onStepChange={setPlaybookStep}
+          />
         )}
 
-        {!selectedCategory && !query && <PracticeInterviews />}
+        {!selectedCategory && !query && (
+          <PracticeInterviews selectedTopic={practiceTopic} onSelectTopic={setPracticeTopic} />
+        )}
 
         {!selectedCategory && !query && <PresidencyConnect />}
 
@@ -539,6 +570,67 @@ const ResourcesPage = () => {
                 </CardContent>
               </Card>
             )}
+            {topicResults.length > 0 && (
+              <div className="mb-10">
+                <h3 className="text-lg font-semibold text-foreground mb-4">Interview guides</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {topicResults.map((topic) => {
+                    const count = VIDEO_LIBRARY.find((t) => t.slug === topic.topicSlug)?.videos.length ?? 0;
+                    return (
+                      <Card key={topic.key} className="h-full border-border bg-card">
+                        <CardContent className="p-5 flex h-full flex-col">
+                          <h4 className="font-semibold text-card-foreground">{topic.title}</h4>
+                          <p className="text-sm text-muted-foreground mt-1 flex-1">{topic.description}</p>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="mt-4 self-start"
+                            onClick={() => browsePracticeInterviews(topic.topicSlug)}
+                          >
+                            Open guide and {count} video{count !== 1 ? "s" : ""}
+                          </Button>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+            {videoResults.length > 0 && (
+              <div className="mb-10">
+                <h3 className="text-lg font-semibold text-foreground mb-4">Practice interview videos</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {videoResults.map((hit) => (
+                    <VideoTile key={hit.key} video={hit.video} />
+                  ))}
+                </div>
+              </div>
+            )}
+            {playbookResults.length > 0 && (
+              <div className="mb-10">
+                <h3 className="text-lg font-semibold text-foreground mb-4">APM Playbook</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {playbookResults.map((step) => {
+                    const number = PLAYBOOK_STEPS.find((s) => s.id === step.stepId)?.number;
+                    return (
+                      <Card key={step.key} className="h-full border-border bg-card">
+                        <CardContent className="p-5 flex h-full flex-col">
+                          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Step {number}</p>
+                          <h4 className="font-semibold text-card-foreground mt-1">{step.title}</h4>
+                          <p className="text-sm text-muted-foreground mt-1 flex-1 line-clamp-3">{step.lede}</p>
+                          <Button variant="outline" size="sm" className="mt-4 self-start" onClick={() => openPlaybookStep(step.stepId)}>
+                            Open step
+                          </Button>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+            {searchResults.length > 0 && (topicResults.length > 0 || videoResults.length > 0 || playbookResults.length > 0) && (
+              <h3 className="text-lg font-semibold text-foreground mb-4">Resources</h3>
+            )}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
               {searchResults.map(({ resource, category }, idx) => (
                 <AnimatedSection key={`${category.id}-${resource.title}`} animation="slide-up" delay={idx * 50} className="h-full">
@@ -557,7 +649,7 @@ const ResourcesPage = () => {
           // No Results
           <div className="max-w-6xl mx-auto text-center py-12">
             <p className="text-muted-foreground mb-4">No resources found matching "{searchQuery.trim()}"</p>
-            <Button variant="outline" onClick={browsePracticeInterviews}>
+            <Button variant="outline" onClick={() => browsePracticeInterviews()}>
               Browse Practice Interviews
             </Button>
           </div>

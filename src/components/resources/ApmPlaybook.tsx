@@ -24,6 +24,8 @@ import { RESOURCE_CATEGORIES } from "@/lib/resources";
 interface ApmPlaybookProps {
   onSelectCategory: (slug: string) => void;
   onOpenResource: (title: string) => void;
+  activeStep?: string;
+  onStepChange?: (id: string) => void;
 }
 
 const isExternalResource = (title: string) =>
@@ -243,8 +245,10 @@ const StepDetail = ({ stepId }: { stepId: string }) => {
   }
 };
 
-const ApmPlaybook = ({ onSelectCategory, onOpenResource }: ApmPlaybookProps) => {
-  const [activeStep, setActiveStep] = useState(PLAYBOOK_STEPS[0].id);
+const ApmPlaybook = ({ onSelectCategory, onOpenResource, activeStep: controlledStep, onStepChange }: ApmPlaybookProps) => {
+  const [ownStep, setOwnStep] = useState(PLAYBOOK_STEPS[0].id);
+  const activeStep = controlledStep ?? ownStep;
+  const setActiveStep = onStepChange ?? setOwnStep;
   const activeIndex = PLAYBOOK_STEPS.findIndex((step) => step.id === activeStep);
 
   const openLink = (link: PlaybookLink) => {
@@ -258,7 +262,11 @@ const ApmPlaybook = ({ onSelectCategory, onOpenResource }: ApmPlaybookProps) => 
       <section aria-labelledby="apm-playbook-title" className="max-w-6xl mx-auto mb-12">
         <div className="rounded-xl border border-border bg-card overflow-hidden">
           <div className="p-5 md:p-8">
-            <h2 id="apm-playbook-title" className="text-2xl md:text-3xl font-extrabold text-card-foreground">
+            <h2
+              id="apm-playbook-title"
+              tabIndex={-1}
+              className="text-2xl md:text-3xl font-extrabold text-card-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
+            >
               The APM Playbook
             </h2>
             <p className="mt-1 text-sm md:text-base text-muted-foreground">
