@@ -1,10 +1,20 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Lock, LogIn, Mail } from "lucide-react";
+import { Clock, Lock, LogIn, Mail } from "lucide-react";
 import AnimatedSection from "@/components/AnimatedSection";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
 const PAY_DUES_URL = "https://clubs.byu.edu/link/club/18295873486206095";
+const DUES_CLICKED_KEY = "pma_dues_clicked_at";
+
+const readDuesClicked = () => {
+  try {
+    return localStorage.getItem(DUES_CLICKED_KEY);
+  } catch {
+    return null;
+  }
+};
 
 export interface LockedCategoryPreview {
   id: string;
@@ -26,6 +36,21 @@ interface LockedResourcesViewProps {
  * so visitors can see what membership unlocks.
  */
 const LockedResourcesView = ({ categories, isLoggedIn }: LockedResourcesViewProps) => {
+  const [duesClickedAt, setDuesClickedAt] = useState<string | null>(readDuesClicked);
+  const isPending = isLoggedIn && !!duesClickedAt;
+
+  const openDuesPage = () => {
+    window.open(PAY_DUES_URL, "_blank", "noopener,noreferrer");
+    if (!isLoggedIn) return;
+    const now = new Date().toISOString();
+    try {
+      localStorage.setItem(DUES_CLICKED_KEY, now);
+    } catch {
+      // storage unavailable: still show the pending state for this visit
+    }
+    setDuesClickedAt(now);
+  };
+
   const scrollToCta = () => {
     document.getElementById("resources-unlock")?.scrollIntoView({ behavior: "smooth", block: "center" });
   };
@@ -51,12 +76,16 @@ const LockedResourcesView = ({ categories, isLoggedIn }: LockedResourcesViewProp
           <Card id="resources-unlock" className="max-w-2xl mx-auto mb-12 border-primary/20">
             <CardContent className="p-6 md:p-8 flex flex-col items-center text-center">
               <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center mb-4">
-                <Lock className="w-7 h-7 text-primary" />
+                {isPending ? <Clock className="w-7 h-7 text-primary" /> : <Lock className="w-7 h-7 text-primary" />}
               </div>
-              <h2 className="text-xl md:text-2xl font-bold mb-2">Members only</h2>
+              <h2 className="text-xl md:text-2xl font-bold mb-2">
+                {isPending ? "Waiting for officer approval" : "Members only"}
+              </h2>
               <p className="text-sm md:text-base text-muted-foreground mb-6 max-w-md">
-                {isLoggedIn
-                  ? "Your account isn't a verified PMA member yet. Pay dues to unlock the full library."
+                {isPending
+                  ? "If you paid your dues, you're done. An officer approves each new member by hand, so the library unlocks after that review, not right away. You don't need to pay again."
+                  : isLoggedIn
+                  ? "Your account isn't a verified PMA member yet. Pay dues, then an officer approves your account by hand before the library unlocks."
                   : "Log in with your PMA member account to open the library. Not a member yet? Pay dues to join."}
               </p>
 
@@ -71,20 +100,20 @@ const LockedResourcesView = ({ categories, isLoggedIn }: LockedResourcesViewProp
                 )}
                 <Button
                   size="lg"
-                  variant={isLoggedIn ? "default" : "outline"}
+                  variant={isLoggedIn && !isPending ? "default" : "outline"}
                   className="w-full sm:flex-1"
-                  onClick={() => window.open(PAY_DUES_URL, "_blank", "noopener,noreferrer")}
+                  onClick={openDuesPage}
                 >
-                  Join PMA (Pay Dues)
+                  {isPending ? "Open the dues page again" : "Join PMA (Pay Dues)"}
                 </Button>
               </div>
 
               {isLoggedIn && (
                 <div className="mt-6 pt-6 border-t border-border w-full max-w-sm flex items-start gap-3 text-left">
                   <Mail className="w-4 h-4 mt-0.5 shrink-0 text-muted-foreground" />
-                  <p className="text-xs text-muted-foreground leading-relaxed">
-                    <span className="font-semibold text-foreground">Already paid?</span> We approve members in
-                    batches. If it's been a few days, email{" "}
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    <span className="font-semibold text-foreground">Already paid?</span> Approval is manual and can
+                    take a few days. Check back here, and if it's been more than a week, email{" "}
                     <a href="mailto:pma@example.com" className="font-semibold text-primary underline">
                       pma@example.com
                     </a>
