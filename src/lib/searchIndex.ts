@@ -60,7 +60,17 @@ const SYNONYMS: Record<string, string[]> = {
 const GENERIC = new Set(["pm", "interview", "interviews", "mock", "mocks", "video", "videos", "practice", "prep", "questions", "question", "help", "resources", "resource", "tips"]);
 const STOP = new Set(["a", "an", "the", "for", "to", "of", "and", "in", "on", "how", "i", "my", "with", "is", "do", "what", "about"]);
 
-const clean = (text: string) => normalizeQuery(text.replace(/[^a-zA-Z0-9/ ]+/g, " "));
+const MAX_QUERY_TERMS = 8;
+
+const clean = (text: string) =>
+  normalizeQuery(
+    text
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-zA-Z0-9/ ]+/g, " "),
+  );
+
+const synonymsFor = (term: string) => (Object.prototype.hasOwnProperty.call(SYNONYMS, term) ? SYNONYMS[term] : []);
 
 const words = (text: string) => clean(text).split(" ").filter(Boolean);
 
@@ -156,9 +166,10 @@ const queryTerms = (query: string) => {
       rest = rest.replace(` ${phrase} `, " ");
     }
   }
-  terms.push(...rest.split(" ").filter(Boolean));
-  const specific = terms.filter((t) => !GENERIC.has(t));
-  return specific.length > 0 ? specific : terms;
+  terms.push(...rest.split(" ").filter((t) => t.length > 1 || /\d/.test(t)));
+  const unique = [...new Set(terms)];
+  const specific = unique.filter((t) => !GENERIC.has(t));
+  return (specific.length > 0 ? specific : unique).slice(0, MAX_QUERY_TERMS);
 };
 
 export const searchIndex = (query: string): SearchHit[] => {
@@ -171,7 +182,7 @@ export const searchIndex = (query: string): SearchHit[] => {
     let score = 0;
     let matchedAll = true;
     for (const term of terms) {
-      const options = [term, ...(SYNONYMS[term] ?? []).map(clean)];
+      const options = [term, ...synonymsFor(term).map(clean)];
       let best = 0;
       options.forEach((option, idx) => {
         const weight = idx === 0 ? 1 : 0.6;

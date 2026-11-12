@@ -1,53 +1,40 @@
 # Make interview prep findable in Resources
 
-**Goal:** A signed-in PMA member preparing for their first interview can type the phrase their recruiter used and open relevant prep in one click.
+**Problem.** Members search Resources for interview prep, get "No resources found", and leave, even though PMA already has the videos and guides. Search only checked the 16 resource links. It never checked the 55 practice videos, the 8 topic guides, or the APM Playbook.
 
-## Problem and evidence
+**Evidence** (from the case kit; method in parentheses)
+- Weekly active members fell 41 → 33 → 30 → 23 (distinct members viewing unlocked `/resources`, Sun to Sat, `events.csv`).
+- 24 of the 29 members who left had a zero-result search, against 4 of the 12 who stayed (`events.csv`, Oct 11 to Nov 7).
+- 76 of 97 searches (78%) returned nothing. The top misses were "case interview", "product sense" and "behavioral".
+- In session data, 22 of the 23 member visits that hit "No resources found" ended there (`clicks.csv`, Oct 27 to Nov 9).
+- "We search, we get nothing, we leave." (Owen, `interviews/02-owen.md`)
+- These numbers show where visits stalled, not how much of the drop search caused on its own.
 
-Resources search checks card titles and descriptions, but Practice Interviews is a separate section that disappears when a member starts typing. A search can say “No resources found” even when PMA has a relevant video or guide. [Current search code](https://github.com/danielwait2/pma-case-competition/blob/main/src/pages/ResourcesPage.tsx#L320-L330) · [Section visibility](https://github.com/danielwait2/pma-case-competition/blob/main/src/pages/ResourcesPage.tsx#L394-L398)
+**What ships**
+1. **Recommended starting point.** Common interview searches show one short video first: "case interview" → 5 min rubric, "product sense" → 25 min Headspace mock, "behavioral" → 3 min story bank.
+2. **Whole-library search,** grouped as Interview guides, Videos, APM Playbook, and Resources.
+3. **Open guide / Open step** jump to the right tab. When nothing matches, **Browse Practice Interviews** appears instead of a dead end.
 
-Weekly active members fell from **41 to 23**. In the Oct. 27–Nov. 9 replay sample, **39 of 46 searches returned zero results**. The **26 visits from 24 members** that hit a zero-result search produced **zero subsequent resource or video opens**. The phrases listed below accounted for **32 of those 39 failed searches** across **22 visits**. These counts come from joining the [click export](https://drive.google.com/file/d/1Vu9afkT2XGIzpWPf_uWgVZrolsH_W-xO/view) to the [site events](https://github.com/danielwait2/pma-case-competition/blob/main/case-kit/events.csv) by session ID and keeping visits to unlocked Resources. They show where visits stalled; they do not establish how much of the weekly decline search caused.
+**How the search engine works** (`src/lib/searchIndex.ts`, no new dependencies)
+- **Index:** at load, one list is built from links (with tips), videos, topic guides, and playbook steps.
+- **Clean the query:** lowercase, strip accents and punctuation, drop filler words ("the", "how") and single letters, keep at most 8 terms.
+- **Synonyms:** student words map to library words, for example "behavioral" → Leadership, "case" → product sense / estimation / strategy / execution, and "deadlines" → APM List.
+- **Match:** every term must match. An exact word scores highest, then a word prefix ("behav"), then one typo ("product sence"). Title matches count double, and synonyms count only on an exact match, at a lower weight.
+- **Rank:** results show per group only if they score close to that group's best, and the groups shrink when a recommendation is shown.
 
-> “I closed it and went to YouTube. I figured PMA just didn’t have interview stuff yet.” — [Owen](https://github.com/danielwait2/pma-case-competition/blob/main/case-kit/interviews/02-owen.md)
+**Not building:** lock screen or approval changes, new content, analytics, dark mode.
 
-## What to ship
+**Success metric:** share of interview-prep search visits that open a video or resource. The baseline is 0 of 22 visits. **Guardrail:** existing searches like "Cursor" still find their card.
 
-**1. Recommended starting point.** Normalize case and whitespace, then match the full query against the three groups below. Show one **Recommended starting point** above every other result, with the video title, duration, a short reason to watch, and a direct **Watch video** link.
+**Tested:**
+- Local production build, signed in, scripted browser.
+- Every check above passes.
+- Odd input (symbols, emoji, 3,000 characters, `constructor`) causes no crash.
+- Screen widths from 320 to 2560px, keyboard-only use, and signed out all checked.
+- All 106 historical searches return results (85 returned nothing before).
+- `npm run build` passes, and lint shows 0 errors.
 
-| Queries | Result | Why this result |
-| --- | --- | --- |
-| `case interview`, `case`, `practice interview`, `mock interview videos`, `interview videos` | **PM Interview Rubric: What to Expect** · 5 min | See what interviewers are looking for before attempting a mock. |
-| `product sense`, `product sense interview` | **Google PM Mock: Improve Headspace** · 25 min | See how a candidate works through a product sense question. |
-| `behavioral`, `behavioral questions`, `behavorial`, `tell me about yourself`, `star method` | **Building a Behavioral Story Bank** · 3 min | Pick stories to practice before drafting answers. |
-
-**2. Search the whole library.** One in-memory index covers all four content sources on the page: the 16 resource links, the 55 practice interview videos, the 8 topic guides, and the 5 APM Playbook steps. It adds a synonym table for the words students use (for example "behavioral" finds Leadership and Drive, and "case" finds product sense, estimation, strategy and execution), prefix matching, and one-typo tolerance. Results are grouped as **Interview guides**, **Practice interview videos**, **APM Playbook**, and **Resources**. Only hits that score close to the best hit of their kind are shown, and the sections shrink when a recommendation is present.
-
-**3. Every result leads somewhere.** **Open guide** clears search, opens that topic's tab in Practice Interviews, and focuses its heading. **Open step** does the same for the APM Playbook step. If nothing matches, **Browse Practice Interviews** appears below the empty message. Existing resource card matches (such as `Cursor`) still appear, clearing the query restores the normal page, and everything stays inside the current membership check.
-
-**Out of scope:** Changes to the lock screen, approval, a free preview, a weekly digest, new video content, and new dependencies.
-
-## Acceptance checks
-
-1. **Recommendation:** `case interview` and `mock interview videos` show the 5 min rubric first. `  PRODUCT   SENSE  ` matches `product sense` (25 min Headspace mock). `behavioral`, `behavorial` and `STAR method` show the 3 min story bank.
-2. **Whole library:** `estimation`, `root cause`, `rubric`, `whatsapp` and `product sence` return guides or videos. `apm deadlines` returns the Applications playbook step and the APM List.
-3. **Navigation:** **Open guide** on `estimation` lands on the Estimation tab with its heading focused. **Open step** on `apm deadlines` lands on step 4.
-4. **Recover and protect:** `zzzz` and `briefcase` show the fallback button, and using it by keyboard focuses Practice Interviews. `Cursor` still shows the Cursor card. Clearing the box or typing only spaces restores the normal page. A 375px screen has no horizontal scroll. Signed out shows the lock screen with no search.
-5. **Ship:** `npm run build` passes and `npm run lint` has no errors.
-
-## How to measure it
-
-- **Primary:** Share of member visits with one of the supported queries that open a resource or video after their first supported search, in the same visit. Historical baseline: **0 of 22 visits** for those exact phrases. Count each visit once. Record the recommendation video click as a video open; report guide opens separately so the comparison stays consistent.
-- **Diagnostic:** Zero-result rate for the supported phrases. A recommendation counts as a result.
-- **Guardrail:** Existing searches like `Cursor` still return their ordinary matches. Watch weekly active members as a longer-term outcome.
-
-The demo verifies the interaction. Measuring the effect after release requires search and open events recorded in the same session.
-
-**Share-out demo:** Type `case interview`. Show the old “No resources found” state, then the new five-minute rubric recommendation. Click it and show the video opening.
-
-## What shipped
-
-- **Files:** `src/lib/resourceSearch.ts` (recommendations), `src/lib/searchIndex.ts` (the index), result sections in `src/pages/ResourcesPage.tsx`, and optional controlled tabs in `PracticeInterviews.tsx` and `ApmPlaybook.tsx`.
-- **Verified:** every acceptance check above passed on a local production build signed in as the demo member. `npm run build` passes, and `npm run lint` has 0 errors (the 13 existing warnings).
-- **Replay:** I ran all 106 searches in `events.csv` through the new search. None of them return zero results now; 85 did before.
-- **Not verified:** the YouTube links were checked by their URLs only, because the test sandbox cannot load YouTube.
-- **Known gaps:** some resource links match on their tips text, so a search like `resume` shows a few loosely related links. Clicking a recommendation or video is not recorded as a video open, because the demo has no video tracking, so production instrumentation is a follow-up.
+**Known limits:**
+- YouTube links were checked by URL only.
+- Some links match on their tips, so results can be loose.
+- The search text is not kept in the URL, so Back doesn't restore a search.
